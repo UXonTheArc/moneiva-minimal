@@ -1,0 +1,142 @@
+"use client"
+
+import Link from "next/link"
+import { useState } from "react"
+import { ChevronRight, Plus, Workflow as WorkflowIcon } from "lucide-react"
+import { toast } from "sonner"
+
+import { KindIcon } from "@/components/m/kind-icon"
+import { Card, Details, Dot, Group, Icon, Journey, PageTitle, Row, Segmented, Section } from "@/components/m/ui"
+import { Switch } from "@/components/ui/switch"
+import { AGENTS } from "@/lib/moneiva/agents-data"
+import { AGENT_STAGE, STAGE_INFO, WORKFLOWS, agentState, type Workflow } from "@/lib/minimal"
+
+export type AutomateView = "agents" | "workflows"
+
+export function Automate({ initialView }: { initialView: AutomateView }) {
+  const [view, setView] = useState<AutomateView>(initialView)
+  const live = WORKFLOWS.filter((w) => w.status !== "archived")
+  const archived = WORKFLOWS.filter((w) => w.status === "archived")
+
+  return (
+    <>
+      <PageTitle
+        title="Automate"
+        lead="Agents do the work. Workflows decide when work happens, with an agent or without one."
+        action={
+          <div className="flex items-center gap-2">
+            <Segmented
+              value={view}
+              onChange={(v) => {
+                setView(v)
+                window.history.replaceState(null, "", v === "workflows" ? "/automate?view=workflows" : "/automate")
+              }}
+              options={[
+                { value: "agents", label: "Agents" },
+                { value: "workflows", label: "Workflows" },
+              ]}
+            />
+            <button
+              aria-label={view === "agents" ? "New agent" : "New workflow"}
+              onClick={() => toast("Creating is not part of this mockup yet.")}
+              className="grid size-10 place-items-center rounded-full bg-primary text-primary-foreground transition hover:brightness-110"
+            >
+              <Plus className="size-5" />
+            </button>
+          </div>
+        }
+      />
+
+      {view === "agents" ? (
+        <Group>
+          {AGENTS.map((a) => {
+            const st = agentState(a)
+            const stage = AGENT_STAGE[a.id]
+            return (
+              <Row
+                key={a.id}
+                href={`/automate/agents/${a.id}`}
+                icon={
+                  <Icon>
+                    <KindIcon kind={a.kind} />
+                  </Icon>
+                }
+                title={a.name}
+                sub={
+                  <span className="inline-flex items-center gap-1.5">
+                    <Dot tone={st.tone} />
+                    {st.tone === "bad" || st.tone === "off" ? st.label : a.channel}
+                  </span>
+                }
+                value={
+                  <div className="hidden w-40 sm:block">
+                    <Journey stage={stage} compact />
+                    <div className="mt-1.5 text-left text-[12px]">{STAGE_INFO[stage].label}</div>
+                  </div>
+                }
+              />
+            )
+          })}
+        </Group>
+      ) : (
+        <>
+          <Group>
+            {live.map((w) => (
+              <WorkflowRow key={w.id} w={w} />
+            ))}
+          </Group>
+          <Details label={`Show ${archived.length} archived`} className="mt-6 px-1">
+            <Group>
+              {archived.map((w) => (
+                <Row key={w.id} title={w.name} sub={w.archivedOn} className="opacity-70" />
+              ))}
+            </Group>
+          </Details>
+        </>
+      )}
+    </>
+  )
+}
+
+function WorkflowRow({ w }: { w: Workflow }) {
+  const [on, setOn] = useState(w.status === "live")
+  const failed = w.last.startsWith("Couldn't")
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/60">
+      <Link href={`/automate/workflows/${w.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+        <Icon tone={failed ? "red" : "gray"}>
+          <WorkflowIcon />
+        </Icon>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[15px] font-medium">{w.name}</div>
+          <div className="mt-0.5 line-clamp-2 text-[13px] text-muted-foreground">{w.sentence}</div>
+          <div className="mt-1 text-[12px] text-muted-foreground">
+            {w.agents === "No agent" ? "No agent" : w.agents} · <span className={failed ? "text-destructive" : ""}>Last run: {w.last}</span>
+          </div>
+        </div>
+      </Link>
+      <Switch
+        checked={on}
+        onCheckedChange={(v) => {
+          setOn(v)
+          toast(v ? `${w.name} is on` : `${w.name} is off`)
+        }}
+        aria-label={`${w.name} on`}
+      />
+      <Link href={`/automate/workflows/${w.id}`} aria-label={`Open ${w.name}`}>
+        <ChevronRight className="size-4 text-muted-foreground/50" />
+      </Link>
+    </div>
+  )
+}
+
+export function BackLink({ href, label }: { href: string; label: string }) {
+  return (
+    <Link href={href} className="mb-6 inline-flex items-center gap-1 text-[15px] font-medium text-primary">
+      <ChevronRight className="size-4 rotate-180" />
+      {label}
+    </Link>
+  )
+}
+
+export { Card, Section }
