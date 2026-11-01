@@ -3,11 +3,10 @@
 import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Bot, CheckCircle2, GraduationCap, History, Moon, Sun } from "lucide-react"
-import { useTheme } from "next-themes"
+import { Bot, CheckCircle2, GraduationCap, History, Sun } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { ME } from "@/lib/moneiva/data"
+import { AccountMenu } from "@/components/m/account-menu"
 import { REVIEW_ITEMS } from "@/lib/minimal"
 import { useDone } from "@/components/m/store"
 
@@ -25,7 +24,6 @@ function isActive(path: string, href: string) {
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname()
-  const { resolvedTheme, setTheme } = useTheme()
   const isDone = useDone()
   const left = REVIEW_ITEMS.filter((i) => !isDone(i.id)).length
   const nav = NAV.map((n) => (n.href === "/review" ? { ...n, count: left } : n))
@@ -73,20 +71,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             >
               <History className="size-[18px]" />
             </Link>
-            <button
-              aria-label="Switch light or dark"
-              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-              className="grid size-9 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground"
-            >
-              <Moon className="size-[18px] dark:hidden" />
-              <Sun className="hidden size-[18px] dark:block" />
-            </button>
-            <span
-              title={ME.name}
-              className="ml-1 grid size-8 place-items-center rounded-full bg-foreground text-[11px] font-semibold text-background"
-            >
-              {ME.initials}
-            </span>
+            <AccountMenu />
           </div>
         </div>
       </header>

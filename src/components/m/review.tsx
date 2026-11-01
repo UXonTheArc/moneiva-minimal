@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
-import { Check, Mail, Paperclip, Phone } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { Check, ChevronLeft, ChevronRight, Mail, Paperclip, Phone } from "lucide-react"
 import { toast } from "sonner"
 
 import { markDone, undoDone, useDone } from "@/components/m/store"
@@ -19,7 +19,28 @@ export function Review({ initialId }: { initialId?: string }) {
   const left = REVIEW_ITEMS.filter((i) => !isDone(i.id))
   const [view, setView] = useState<"one" | "list">("one")
   const [pick, setPick] = useState<string | undefined>(initialId)
+  const [dir, setDir] = useState<1 | -1>(1)
   const current = left.find((i) => i.id === pick) ?? left[0]
+  const idx = current ? left.indexOf(current) : -1
+
+  function go(step: 1 | -1) {
+    const next = left[idx + step]
+    if (!next) return false
+    setDir(step)
+    setPick(next.id)
+    return true
+  }
+
+  // Arrow keys move between cards, except while typing.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (view !== "one" || (e.target as HTMLElement).closest("textarea, input")) return
+      if (e.key === "ArrowRight") go(1)
+      if (e.key === "ArrowLeft") go(-1)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  })
 
   function finish(item: Item, message: string) {
     markDone(item.id)
@@ -82,20 +103,89 @@ export function Review({ initialId }: { initialId?: string }) {
                 <button
                   key={i.id}
                   aria-label={i.subject}
-                  onClick={() => setPick(i.id)}
+                  onClick={() => {
+                    setDir(left.indexOf(i) < idx ? -1 : 1)
+                    setPick(i.id)
+                  }}
                   className={cn("size-2 rounded-full transition", i.id === current.id ? "w-5 bg-foreground" : "bg-foreground/20")}
                 />
               ))}
             </div>
           </div>
-          <ItemCard key={current.id} item={current} onFinish={finish} />
+          <div className="relative">
+            <Swipe onSwipe={go}>
+              <ItemCard key={current.id} item={current} dir={dir} onFinish={finish} />
+            </Swipe>
+            <button
+              aria-label="Previous"
+              onClick={() => go(-1)}
+              disabled={idx === 0}
+              className="absolute top-40 -left-16 hidden size-11 place-items-center rounded-full bg-card shadow-sm transition hover:shadow-md disabled:opacity-0 lg:grid"
+            >
+              <ChevronLeft className="size-5" />
+            </button>
+            <button
+              aria-label="Next"
+              onClick={() => go(1)}
+              disabled={idx === left.length - 1}
+              className="absolute top-40 -right-16 hidden size-11 place-items-center rounded-full bg-card shadow-sm transition hover:shadow-md disabled:opacity-0 lg:grid"
+            >
+              <ChevronRight className="size-5" />
+            </button>
+          </div>
+          <p className="mt-4 text-center text-[13px] text-muted-foreground">Swipe or use the arrow keys to move between them.</p>
         </div>
       )}
     </>
   )
 }
 
-function ItemCard({ item, onFinish }: { item: Item; onFinish: (i: Item, msg: string) => void }) {
+/** Drag a card sideways to move to the next or previous one. Vertical scrolling still works. */
+function Swipe({ onSwipe, children }: { onSwipe: (step: 1 | -1) => boolean; children: React.ReactNode }) {
+  const start = useRef<{ x: number; y: number; id: number } | null>(null)
+  const [dx, setDx] = useState(0)
+  const [dragging, setDragging] = useState(false)
+
+  return (
+    <div
+      className="touch-pan-y select-none"
+      style={{
+        transform: `translateX(${dx}px) rotate(${dx / 60}deg)`,
+        transition: dragging ? "none" : "transform 250ms cubic-bezier(.2,.8,.2,1)",
+      }}
+      onPointerDown={(e) => {
+        if ((e.target as HTMLElement).closest("textarea, input, button, a, label")) return
+        start.current = { x: e.clientX, y: e.clientY, id: e.pointerId }
+      }}
+      onPointerMove={(e) => {
+        const s = start.current
+        if (!s) return
+        const x = e.clientX - s.x
+        if (!dragging) {
+          if (Math.abs(x) < 8 || Math.abs(x) < Math.abs(e.clientY - s.y)) return
+          setDragging(true)
+          ;(e.currentTarget as HTMLElement).setPointerCapture(s.id)
+        }
+        setDx(x)
+      }}
+      onPointerUp={() => {
+        if (dragging && Math.abs(dx) > 80) onSwipe(dx < 0 ? 1 : -1)
+        start.current = null
+        setDragging(false)
+        setDx(0)
+      }}
+      onPointerCancel={() => {
+        start.current = null
+        setDragging(false)
+        setDx(0)
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
+function ItemCard({ item, dir, onFinish }: { item: Item; dir: 1 | -1; onFinish: (i: Item, msg: string) => void }) {
   const [mode, setMode] = useState<Mode>("view")
   const [text, setText] = useState(item.kind === "reply" ? item.reply : "")
   const [remember, setRemember] = useState(true)
@@ -105,7 +195,7 @@ function ItemCard({ item, onFinish }: { item: Item; onFinish: (i: Item, msg: str
   const rule = `For ${item.ruleType}: when ${item.ruleWhen}, ${item.ruleThen}.`
 
   return (
-    <Card className="animate-in p-6 fade-in-0 slide-in-from-right-4 sm:p-8">
+    <Card className={cn("animate-in p-6 fade-in-0 sm:p-8", dir === 1 ? "slide-in-from-right-8" : "slide-in-from-left-8")}>
       {/* Who and what */}
       <div className="flex items-center gap-3">
         <span className="grid size-10 place-items-center rounded-full bg-secondary text-[13px] font-semibold">
