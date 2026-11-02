@@ -2,23 +2,43 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { AlertCircle, Workflow as WorkflowIcon } from "lucide-react"
+import { AlertCircle, Settings2, Workflow as WorkflowIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import { BackLink } from "@/components/m/automate"
-import { Card, Details, Dot, Group, Icon, Row, Section, Steps, btn } from "@/components/m/ui"
+import { StatusMenu, type RunStatus } from "@/components/m/status-menu"
+import { Card, Dot, Field, Group, Icon, Row, SaveBar, Section, Select, Steps, btn, inputCls } from "@/components/m/ui"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
-import { RUNS, SETTINGS, type Run } from "@/lib/moneiva/automations-data"
-import type { Workflow } from "@/lib/minimal"
+import type { Run } from "@/lib/moneiva/automations-data"
+import { WORKFLOW_STATUS, runsFor, settingsFor, type Workflow } from "@/lib/minimal"
 
 const TONE = { red: "bad", amber: "warn", green: "ok", gray: "off", blue: "blue" } as const
 
 export function WorkflowDetail({ w }: { w: Workflow }) {
-  const [on, setOn] = useState(w.status === "live")
+  const [status, setStatus] = useState<RunStatus>(w.status === "live" ? "live" : w.status === "paused" ? "paused" : w.status === "test" ? "test" : "off")
   const [run, setRun] = useState<Run | null>(null)
-  const rich = w.id === "osd"
+  const [runs, setRuns] = useState<Run[]>(() => runsFor(w))
+  const [settings, setSettings] = useState(false)
+
+  function runAgain(r: Run) {
+    setRun(null)
+    setRuns((list) => [
+      {
+        ...r,
+        id: `again${list.length}`,
+        started: "Just now",
+        result: "Running",
+        tone: "blue",
+        took: "Running",
+        note: undefined,
+        noteTitle: undefined,
+        steps: r.steps.map((s, i) => ({ ...s, detail: i === 0 ? s.detail : "Waiting", time: "", state: i === 0 ? "done" : i === 1 ? "now" : "todo" })),
+      },
+      ...list,
+    ])
+    toast.success("Started a new run. It shows at the top of Recent runs.")
+  }
   const failed = w.last.startsWith("Couldn't")
 
   return (
@@ -36,16 +56,14 @@ export function WorkflowDetail({ w }: { w: Workflow }) {
         <Link href={`/automate/workflows/${w.id}/edit`} className={btn.secondary}>
           Edit
         </Link>
-        <label className="flex items-center gap-3 text-[15px] font-medium">
-          {on ? "On" : "Off"}
-          <Switch
-            checked={on}
-            onCheckedChange={(v) => {
-              setOn(v)
-              toast(v ? `${w.name} is on` : `${w.name} is off`)
-            }}
-          />
-        </label>
+        <StatusMenu
+          value={status}
+          options={WORKFLOW_STATUS}
+          onChange={(v) => {
+            setStatus(v)
+            toast(`${w.name} is ${WORKFLOW_STATUS.find((o) => o.value === v)!.label.toLowerCase()}. ${WORKFLOW_STATUS.find((o) => o.value === v)!.sub}`)
+          }}
+        />
       </div>
 
       <p className="mb-10 max-w-2xl text-[22px] leading-snug font-medium tracking-tight">{w.sentence}</p>
@@ -79,45 +97,68 @@ export function WorkflowDetail({ w }: { w: Workflow }) {
       </Section>
 
       <Section title="Recent runs">
-        {rich ? (
-          <Group>
-            {RUNS.map((r) => (
-              <Row
-                key={r.id}
-                onClick={() => setRun(r)}
-                title={r.report}
-                sub={
-                  <span className="inline-flex items-center gap-1.5">
-                    <Dot tone={TONE[r.tone]} />
-                    {r.result} · {r.started}
-                  </span>
-                }
-              />
-            ))}
-          </Group>
-        ) : (
-          <Group>
-            <Row title={w.last === "Never" ? "No runs yet" : `Last run: ${w.last}`} sub={w.last === "Never" ? "Turn it on to start." : "Finished with no problems."} />
-          </Group>
-        )}
+        <Group>
+          {runs.map((r) => (
+            <Row
+              key={r.id}
+              onClick={() => setRun(r)}
+              title={r.report}
+              sub={
+                <span className="inline-flex items-center gap-1.5">
+                  <Dot tone={TONE[r.tone]} />
+                  {r.result} · {r.started}
+                </span>
+              }
+            />
+          ))}
+          {!runs.length && <Row title="No runs yet" sub="Set it to Live to start." />}
+        </Group>
       </Section>
 
-      {rich && (
-        <Details label="Show settings" className="px-1">
-          <div className="space-y-6">
-            {SETTINGS.map((s) => (
-              <div key={s.title}>
-                <div className="mb-2 px-1 text-[13px] font-semibold text-muted-foreground">{s.title}</div>
-                <Group>
-                  {s.fields.map((f) => (
-                    <Row key={f.label} title={f.label} sub={f.value} />
-                  ))}
-                </Group>
-              </div>
-            ))}
-          </div>
-        </Details>
-      )}
+      <Section title="Under the hood">
+        <Group>
+          <Row
+            onClick={() => setSettings(true)}
+            icon={
+              <Icon>
+                <Settings2 />
+              </Icon>
+            }
+            title="Settings"
+            sub="When it runs, who approves, and who hears when something goes wrong"
+          />
+          <Row
+            href={`/automate/workflows/${w.id}/edit`}
+            icon={
+              <Icon>
+                <WorkflowIcon />
+              </Icon>
+            }
+            title="Canvas"
+            sub="Add, change or remove steps"
+          />
+        </Group>
+      </Section>
+
+      <Sheet open={settings} onOpenChange={setSettings}>
+        <SheetContent className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-lg">
+          <SheetHeader className="border-b border-border p-6">
+            <SheetTitle className="text-[22px] font-semibold tracking-tight">Settings</SheetTitle>
+            <SheetDescription className="text-[15px]">{w.name}</SheetDescription>
+          </SheetHeader>
+          {settingsFor(w).map((sec) => (
+            <div key={sec.title} className="space-y-5 border-b border-border p-6">
+              <div className="text-[15px] font-semibold">{sec.title}</div>
+              {sec.fields.map((f) => (
+                <Field key={f.label} label={f.label} hint={f.hint}>
+                  {f.options ? <Select value={f.value} options={f.options} /> : <input defaultValue={f.value} className={inputCls} />}
+                </Field>
+              ))}
+            </div>
+          ))}
+          <SaveBar onSave={() => setSettings(false)} />
+        </SheetContent>
+      </Sheet>
 
       <Sheet open={!!run} onOpenChange={(o) => !o && setRun(null)}>
         <SheetContent className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-lg">
@@ -138,6 +179,16 @@ export function WorkflowDetail({ w }: { w: Workflow }) {
               <div className="p-6">
                 <Steps steps={run.steps.map((s) => ({ title: s.title, sub: [s.detail, s.time].filter(Boolean).join(" · "), state: s.state }))} />
               </div>
+              {run.result !== "Running" && (
+                <div className="mt-auto flex gap-3 border-t border-border p-4">
+                  <button className={cn(btn.primary, "flex-1")} onClick={() => runAgain(run)}>
+                    Run it again
+                  </button>
+                  <Link href="/activity" className={cn(btn.secondary, "flex-1")}>
+                    View in Activity
+                  </Link>
+                </div>
+              )}
             </>
           )}
         </SheetContent>

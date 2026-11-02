@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useState } from "react"
 import { ChevronDown, ChevronRight } from "lucide-react"
+import { toast } from "sonner"
 
 import { cn } from "@/lib/utils"
 import { STAGES, type Stage } from "@/lib/moneiva/data"
@@ -193,3 +194,49 @@ export function Segmented<T extends string>({ value, options, onChange }: { valu
     </div>
   )
 }
+
+/* Form controls: the same look in every sheet. */
+export const inputCls =
+  "mt-1 h-11 w-full rounded-xl border border-border bg-card px-3 text-[15px] outline-none focus:ring-4 focus:ring-primary/15"
+export const areaCls =
+  "mt-1 w-full resize-none rounded-xl border border-border bg-card p-3 text-[15px] leading-relaxed outline-none focus:ring-4 focus:ring-primary/15"
+
+export function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="text-[13px] font-semibold text-muted-foreground">{label}</span>
+      {children}
+      {hint && <span className="mt-1 block text-[12px] text-muted-foreground">{hint}</span>}
+    </label>
+  )
+}
+
+export function Select({ value, options, onChange }: { value: string; options: string[]; onChange?: (v: string) => void }) {
+  return (
+    <select defaultValue={value} onChange={(e) => onChange?.(e.target.value)} className={cn(inputCls, "appearance-none bg-[length:16px] bg-[right_12px_center] bg-no-repeat pr-9")}
+      style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236e6e73' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")" }}
+    >
+      {[value, ...options.filter((o) => o !== value)].map((o) => (
+        <option key={o}>{o}</option>
+      ))}
+    </select>
+  )
+}
+
+/** The same footer on every editable sheet. */
+export function SaveBar({ onSave }: { onSave: () => void }) {
+  return (
+    <div className="sticky bottom-0 mt-auto border-t border-border bg-background p-4">
+      <button
+        className={cn(btn.primary, "w-full")}
+        onClick={() => {
+          onSave()
+          toast.success("Saved")
+        }}
+      >
+        Save
+      </button>
+    </div>
+  )
+}
+

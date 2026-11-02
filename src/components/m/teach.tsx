@@ -2,29 +2,31 @@
 
 import Link from "next/link"
 import { useMemo, useState } from "react"
-import { ArrowRight, BookOpen, FileText, FileUp, GraduationCap, Loader, Mail, Scale, Search, Tags } from "lucide-react"
+import { ArrowRight, BookOpen, Check, CheckCircle2, X, FileText, FileUp, GraduationCap, Loader, Mail, Scale, Search, Tags } from "lucide-react"
 import { toast } from "sonner"
 
 import { FactsSheet, type SheetFact } from "@/components/m/facts-sheet"
 import { useDone } from "@/components/m/store"
-import { Card, Empty, Group, Icon, Journey, PageTitle, Row, Section, btn } from "@/components/m/ui"
+import { Card, Empty, Field, Group, Icon, PageTitle, Row, Section, Select, btn, inputCls } from "@/components/m/ui"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
-import { DOCS, REQUEST_TYPES, RULES, STAGES } from "@/lib/moneiva/data"
+import { DOCS, ME, REQUEST_TYPES, RULES, STAGES, type Rule, type Stage } from "@/lib/moneiva/data"
 import { FACT_COUNT, KNOWS, NEW_DOC, factsFrom } from "@/lib/moneiva/playbook-data"
-import { EMAIL_SOURCE, RUNS } from "@/lib/moneiva/training-data"
+import { EMAIL_SOURCE, RUNS, THREADS } from "@/lib/moneiva/training-data"
 import { STAGE_INFO, TEACH_ITEMS } from "@/lib/minimal"
 
 const EMAIL = "Your email history"
 type Phase = "ready" | "empty" | "reading"
 type Open = { title: string; sub: string; facts: SheetFact[]; checkable?: boolean } | null
 
-export function Teach({ initialPhase }: { initialPhase: Phase }) {
+export type TeachPanel = "rules" | "types" | "email" | "right"
+
+export function Teach({ initialPhase, initialPanel }: { initialPhase: Phase; initialPanel?: TeachPanel }) {
   const [phase, setPhase] = useState<Phase>(initialPhase)
   const [q, setQ] = useState("")
   const [open, setOpen] = useState<Open>(null)
-  const [panel, setPanel] = useState<"rules" | "types" | "email" | null>(null)
+  const [panel, setPanel] = useState<TeachPanel | null>(initialPanel ?? null)
   const [uploading, setUploading] = useState(false)
   const [uploaded, setUploaded] = useState(false)
   const isDone = useDone()
@@ -116,6 +118,19 @@ export function Teach({ initialPhase }: { initialPhase: Phase }) {
           </Link>
         )}
       </Card>
+
+      <Group className="-mt-8 mb-12">
+        <Row
+          onClick={() => setPanel("right")}
+          icon={
+            <Icon tone="green">
+              <CheckCircle2 />
+            </Icon>
+          }
+          title={`${RIGHT.length} it got right`}
+          sub="Confirm them so it trusts these answers sooner"
+        />
+      </Group>
 
       <Section title="Add to what it knows">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -251,6 +266,7 @@ export function Teach({ initialPhase }: { initialPhase: Phase }) {
           {panel === "rules" && <RulesPanel />}
           {panel === "types" && <TypesPanel />}
           {panel === "email" && <EmailPanel onImport={() => setPanel(null)} />}
+          {panel === "right" && <RightPanel />}
         </SheetContent>
       </Sheet>
     </>
@@ -267,16 +283,47 @@ function PanelHead({ title, sub }: { title: string; sub: string }) {
 }
 
 function RulesPanel() {
+  const [rules, setRules] = useState<Rule[]>(RULES)
+  const [type, setType] = useState("All kinds of email")
+  const [when, setWhen] = useState("")
+  const [then, setThen] = useState("")
+  const ready = when.trim() && then.trim()
+
   return (
     <>
-      <PanelHead title="Rules you set" sub="Rules always win over what it learned. Most come from edits you made in Review." />
+      <PanelHead title="Rules you set" sub="Rules always win over what it learned. Most come from edits in Review, and you can add your own." />
+      <div className="space-y-4 border-b border-border p-6">
+        <div className="text-[15px] font-semibold">Add a rule</div>
+        <Field label="For">
+          <Select value={type} options={["All kinds of email", ...REQUEST_TYPES.map((t) => t.name)]} onChange={setType} />
+        </Field>
+        <Field label="When">
+          <input value={when} onChange={(e) => setWhen(e.target.value)} placeholder="the pickup is more than 90 days old" className={inputCls} />
+        </Field>
+        <Field label="Then">
+          <input value={then} onChange={(e) => setThen(e.target.value)} placeholder="don't reply, and send it to Review" className={inputCls} />
+        </Field>
+        <button
+          className={cn(btn.primary, "w-full")}
+          disabled={!ready}
+          onClick={() => {
+            const text = `If ${when.trim()}, ${then.trim()}.`
+            setRules((r) => [{ text: text.charAt(0).toUpperCase() + text.slice(1), requestType: type, source: "Added by hand", by: ME.name, on: "Today", active: true }, ...r])
+            setWhen("")
+            setThen("")
+            toast.success("Rule added. It applies from the next email.")
+          }}
+        >
+          Add rule
+        </button>
+      </div>
       <ul className="divide-y divide-border">
-        {RULES.map((r, i) => (
-          <li key={i} className="flex items-start gap-4 px-6 py-4">
+        {rules.map((r) => (
+          <li key={r.text} className="flex items-start gap-4 px-6 py-4">
             <div className="min-w-0 flex-1">
               <p className="text-[15px] leading-relaxed">{r.text}</p>
               <p className="mt-1 text-[12px] text-muted-foreground">
-                {r.requestType} · {r.by}, {r.on}
+                {r.requestType} · {r.source} · {r.by}, {r.on}
               </p>
             </div>
             <Switch defaultChecked={r.active} aria-label="Rule on" className="mt-1" />
@@ -288,31 +335,120 @@ function RulesPanel() {
 }
 
 function TypesPanel() {
+  const [stages, setStages] = useState<Record<string, Stage>>(() => Object.fromEntries(REQUEST_TYPES.map((t) => [t.name, t.stage])))
+  const [open, setOpen] = useState<string | null>(REQUEST_TYPES.find((t) => t.flag === "ready")?.name ?? null)
+
+  function move(name: string, to: Stage) {
+    const from = stages[name]
+    if (from === to) return
+    setStages((s) => ({ ...s, [name]: to }))
+    toast.success(`${name} ${STAGES.indexOf(to) > STAGES.indexOf(from) ? "moved up" : "moved back"} to ${STAGE_INFO[to].label}`)
+  }
+
   return (
     <>
-      <PanelHead title="Kinds of email" sub="Each kind of email moves through four steps. It moves up when it keeps matching your team, and you always approve the move." />
-      {STAGES.map((s) => {
-        const types = REQUEST_TYPES.filter((t) => t.stage === s)
+      <PanelHead title="Kinds of email" sub="Each kind moves through four steps on its own. It moves up when it keeps matching your team, and only when you say so." />
+      {STAGES.map((st) => {
+        const types = REQUEST_TYPES.filter((t) => stages[t.name] === st)
         return (
-          <div key={s} className="border-b border-border px-6 py-5">
+          <div key={st} className="border-b border-border px-6 py-5">
             <div className="mb-1 flex items-baseline justify-between">
-              <h3 className="text-[17px] font-semibold">{STAGE_INFO[s].label}</h3>
+              <h3 className="text-[17px] font-semibold">{STAGE_INFO[st].label}</h3>
               <span className="text-[13px] text-muted-foreground">{types.length}</span>
             </div>
-            <p className="mb-3 text-[13px] text-muted-foreground">{STAGE_INFO[s].sub}</p>
-            <Journey stage={s} compact />
-            <ul className="mt-3 space-y-2">
+            <p className="mb-3 text-[13px] text-muted-foreground">{STAGE_INFO[st].sub}</p>
+            <ul className="space-y-1">
               {types.map((t) => (
-                <li key={t.name} className="flex justify-between gap-3 text-[14px]">
-                  <span>{t.name}</span>
-                  <span className="shrink-0 text-muted-foreground">{t.of ? `${t.matched} of ${t.of} right` : ""}</span>
+                <li key={t.name} className={cn("rounded-xl", open === t.name && "bg-muted")}>
+                  <button onClick={() => setOpen(open === t.name ? null : t.name)} className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-[14px] hover:bg-muted">
+                    <span>
+                      {t.name}
+                      {t.flag === "ready" && stages[t.name] === t.stage && <span className="ml-2 text-[12px] font-medium text-primary">Ready to move up</span>}
+                    </span>
+                    <span className="shrink-0 text-muted-foreground">{t.of ? `${t.matched} of ${t.of} right` : ""}</span>
+                  </button>
+                  {open === t.name && (
+                    <div className="px-3 pb-3">
+                      <div className="grid grid-cols-4 gap-1 rounded-full bg-card p-1">
+                        {STAGES.map((to) => (
+                          <button
+                            key={to}
+                            onClick={() => move(t.name, to)}
+                            className={cn("h-8 rounded-full text-[12px] font-medium text-muted-foreground", stages[t.name] === to && "bg-primary text-primary-foreground")}
+                          >
+                            {STAGE_INFO[to].label}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-[12px] text-muted-foreground">{t.line}</p>
+                    </div>
+                  )}
                 </li>
               ))}
-              {!types.length && <li className="text-[14px] text-muted-foreground">None yet</li>}
+              {!types.length && <li className="px-3 text-[14px] text-muted-foreground">None yet</li>}
             </ul>
           </div>
         )
       })}
+    </>
+  )
+}
+
+const RIGHT = THREADS.filter((t) => t.group === "right")
+
+function RightPanel() {
+  const [marks, setMarks] = useState<Record<string, "right" | "wrong">>({})
+  const all = RIGHT.every((t) => marks[t.id])
+  return (
+    <>
+      <PanelHead title="What it got right" sub="It did what your team did on these. Confirm them, or flag one that only looks right." />
+      <ul className="divide-y divide-border">
+        {RIGHT.map((t) => (
+          <li key={t.id} className="px-6 py-4">
+            <div className="flex items-start gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-[15px] font-medium">{t.subject}</div>
+                <div className="mt-0.5 text-[12px] text-muted-foreground">
+                  {t.from} · {t.type} · {t.tab === "shadow" ? "Watched live" : "Past email"}, {t.date}
+                </div>
+                <p className="mt-2 text-[14px] leading-relaxed">{t.did}</p>
+              </div>
+              {marks[t.id] ? (
+                <button onClick={() =>
+                    setMarks((m) => {
+                      const next = { ...m }
+                      delete next[t.id]
+                      return next
+                    })
+                  } className="shrink-0 text-[13px] text-muted-foreground hover:text-foreground">
+                  {marks[t.id] === "right" ? "Confirmed" : "Flagged"} · Undo
+                </button>
+              ) : (
+                <div className="flex shrink-0 gap-1">
+                  <button aria-label="Right" onClick={() => setMarks((m) => ({ ...m, [t.id]: "right" }))} className="grid size-8 place-items-center rounded-full bg-secondary hover:text-ok">
+                    <Check className="size-4" />
+                  </button>
+                  <button aria-label="Not right" onClick={() => setMarks((m) => ({ ...m, [t.id]: "wrong" }))} className="grid size-8 place-items-center rounded-full bg-secondary hover:text-destructive">
+                    <X className="size-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div className="mt-auto border-t border-border p-4">
+        <button
+          className={cn(btn.primary, "w-full")}
+          disabled={all}
+          onClick={() => {
+            setMarks((m) => Object.fromEntries(RIGHT.map((t) => [t.id, m[t.id] ?? "right"])))
+            toast.success("Confirmed. It will trust these answers sooner.")
+          }}
+        >
+          {all ? "All done" : "Mark the rest as right"}
+        </button>
+      </div>
     </>
   )
 }

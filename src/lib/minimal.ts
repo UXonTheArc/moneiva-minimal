@@ -1,6 +1,6 @@
 // What the minimal version shows, derived from the shared synthetic data.
 import { AGENTS, type Agent } from "@/lib/moneiva/agents-data"
-import { AUTOMATIONS } from "@/lib/moneiva/automations-data"
+import { AUTOMATIONS, RUNS, SETTINGS, type Run, type SettingSection } from "@/lib/moneiva/automations-data"
 import { REQUEST_TYPES, STAGES, type Stage } from "@/lib/moneiva/data"
 import { inboxItems, type CallItem, type NewTypeItem, type ReplyItem } from "@/lib/moneiva/inbox-data"
 import { THREADS, type Thread } from "@/lib/moneiva/training-data"
@@ -100,3 +100,66 @@ export const WORKFLOWS: Workflow[] = AUTOMATIONS.map((w) => ({
 }))
 
 export const workflowById = (id: string) => WORKFLOWS.find((w) => w.id === id)
+
+/** Status choices, worded the same for agents and workflows. */
+export const AGENT_STATUS = [
+  { value: "live", label: "Live", sub: "Works every email or call that comes in." },
+  { value: "test", label: "Test only", sub: "Works them but sends nothing. Results show in Teach." },
+  { value: "paused", label: "Paused", sub: "New work waits, and starts again when you set it back to Live." },
+  { value: "off", label: "Off", sub: "Stops. Everything goes to Review for a person." },
+] as const
+
+export const WORKFLOW_STATUS = [
+  { value: "live", label: "Live", sub: "Runs every time it is triggered." },
+  { value: "test", label: "Test only", sub: "Runs but sends nothing and places no calls." },
+  { value: "paused", label: "Paused", sub: "New runs wait, and start when you set it back to Live." },
+  { value: "off", label: "Off", sub: "Stops starting runs. The work goes to Review for a person." },
+] as const
+
+/** Run history for every workflow. The damage report has its own detailed runs. */
+type Sample = { report: string; started: string; took: string; details: string[] }
+const SAMPLES: Record<string, Sample[]> = {
+  late: [
+    { report: "14 late loads", started: "Oct 13, 9:00 AM", took: "38 min", details: ["Found 14 loads running late", "Reached 12 carriers. 2 didn't answer and went to Review", "Emailed 12 customers their new ETA"] },
+    { report: "9 late loads", started: "Oct 10, 2:00 PM", took: "22 min", details: ["Found 9 loads running late", "Reached all 9 carriers", "Emailed 9 customers their new ETA"] },
+    { report: "11 late loads", started: "Oct 10, 9:00 AM", took: "31 min", details: ["Found 11 loads running late", "Reached 10 carriers. 1 went to Review", "Emailed 10 customers their new ETA"] },
+  ],
+  missed: [
+    { report: "Voicemail from (555) 010-0142", started: "Oct 13, 7:05 AM", took: "2 min", details: ["Left at 9:48 PM", "Casey Nguyen wants to move pickup 9800777", "Emailed Casey that the desk will call this morning"] },
+    { report: "Voicemail from (555) 010-0163", started: "Oct 11, 7:02 AM", took: "1 min", details: ["Left at 6:15 PM", "Asked for a proof of delivery on PRO 0300100388", "Emailed the caller the proof of delivery"] },
+  ],
+  latepickup: [
+    { report: "Pickup 9800611 is 2 hours late", started: "Oct 12, 3:40 PM", took: "instant", details: ["Found in Acme at 3:40 PM", "Emailed dispatch@example.test"] },
+    { report: "Pickup 9800540 is 2 hours late", started: "Oct 9, 11:15 AM", took: "instant", details: ["Found in Acme at 11:15 AM", "Emailed dispatch@example.test"] },
+  ],
+  dedup: [{ report: "3 repeat emails merged", started: "Aug 28, 10:02 AM", took: "4 sec", details: ["New email from riley@example.test", "Merged it with 2 earlier emails"] }],
+  holiday: [{ report: "Auto-reply to 41 senders", started: "Jan 2, 5:00 PM", took: "9 days", details: ["Dec 24 to Jan 2", "Replied to 41 senders with the reopening date"] }],
+}
+
+export function runsFor(w: Workflow): Run[] {
+  if (w.id === "osd") return RUNS
+  return (SAMPLES[w.id] ?? []).map((r, i) => ({
+    id: `${w.id}${i}`,
+    started: r.started,
+    report: r.report,
+    result: "Done",
+    tone: "green",
+    took: r.took,
+    steps: w.steps.map((s) => ({ title: s.title, detail: r.details[w.steps.indexOf(s)] ?? s.sub, time: "", state: "done" as const })),
+    actions: [],
+  }))
+}
+
+/** Settings for every workflow, in the same shape as the damage report's. */
+export function settingsFor(w: Workflow): SettingSection[] {
+  if (w.id === "osd") return SETTINGS
+  return [
+    { title: "About", sub: "", fields: [{ label: "Name", value: w.name }, { label: "Description", value: w.desc }] },
+    { title: "When it runs", sub: "", fields: [{ label: "Starts when", value: w.trigger, options: [w.trigger] }, { label: "Hours", value: "Any time", options: ["Any time", "Weekdays, 7 AM to 6 PM"] }] },
+    {
+      title: "Alerts",
+      sub: "",
+      fields: [{ label: "If a run can't finish", value: "Put it in Review and email Jordan Lee", options: ["Put it in Review and email Jordan Lee", "Put it in Review", "Email Taylor Morgan"] }],
+    },
+  ]
+}

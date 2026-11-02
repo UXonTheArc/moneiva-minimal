@@ -7,7 +7,6 @@ import { toast } from "sonner"
 
 import { KindIcon } from "@/components/m/kind-icon"
 import { Card, Details, Dot, Group, Icon, Journey, PageTitle, Row, Segmented, Section } from "@/components/m/ui"
-import { Switch } from "@/components/ui/switch"
 import { AGENTS } from "@/lib/moneiva/agents-data"
 import { AGENT_STAGE, STAGE_INFO, WORKFLOWS, agentState, type Workflow } from "@/lib/minimal"
 
@@ -99,34 +98,27 @@ export function Automate({ initialView }: { initialView: AutomateView }) {
 }
 
 function WorkflowRow({ w }: { w: Workflow }) {
-  const [on, setOn] = useState(w.status === "live")
   const failed = w.last.startsWith("Couldn't")
+  const live = w.status === "live"
   return (
-    <div className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/60">
-      <Link href={`/automate/workflows/${w.id}`} className="flex min-w-0 flex-1 items-center gap-3">
-        <Icon tone={failed ? "red" : "gray"}>
+    <Row
+      href={`/automate/workflows/${w.id}`}
+      icon={
+        <Icon>
           <WorkflowIcon />
         </Icon>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-[15px] font-medium">{w.name}</div>
-          <div className="mt-0.5 line-clamp-2 text-[13px] text-muted-foreground">{w.sentence}</div>
-          <div className="mt-1 text-[12px] text-muted-foreground">
-            {w.agents === "No agent" ? "No agent" : w.agents} · <span className={failed ? "text-destructive" : ""}>Last run: {w.last}</span>
-          </div>
-        </div>
-      </Link>
-      <Switch
-        checked={on}
-        onCheckedChange={(v) => {
-          setOn(v)
-          toast(v ? `${w.name} is on` : `${w.name} is off`)
-        }}
-        aria-label={`${w.name} on`}
-      />
-      <Link href={`/automate/workflows/${w.id}`} aria-label={`Open ${w.name}`}>
-        <ChevronRight className="size-4 text-muted-foreground/50" />
-      </Link>
-    </div>
+      }
+      title={w.name}
+      sub={
+        <>
+          <span className="block">{w.sentence}</span>
+          <span className="mt-1 inline-flex items-center gap-1.5 text-[12px]">
+            <Dot tone={failed ? "bad" : live ? "ok" : "off"} />
+            {failed ? "Last run couldn't finish" : live ? "Live" : "Off"} · {w.agents}
+          </span>
+        </>
+      }
+    />
   )
 }
 

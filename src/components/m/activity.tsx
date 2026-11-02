@@ -2,14 +2,17 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { Mail, MessageSquare, PhoneIncoming, PhoneOutgoing, Search, X } from "lucide-react"
+import { Mail, MessageSquare, PhoneIncoming, PhoneOutgoing, Search, SlidersHorizontal, X } from "lucide-react"
 
 import { Details, Dot, Group, Icon, PageTitle, Row, Segmented, Section, Steps, btn } from "@/components/m/ui"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
-import { ACTIVITY, INBOX_LINK, STATUS_LABEL, type ActivityChannel, type ActivityRow, type ActivityStatus } from "@/lib/moneiva/activity-data"
+import { ACTIVITY, FILTER_MENUS, INBOX_LINK, STATUS_LABEL, type ActivityChannel, type ActivityRow, type ActivityStatus } from "@/lib/moneiva/activity-data"
 
 type Filter = "all" | "needs" | "fail"
+const CHANNELS = FILTER_MENUS.find((m) => m.key === "channel")!.opts
+const TYPES = FILTER_MENUS.find((m) => m.key === "type")!.opts
 const TONE: Record<ActivityStatus, "ok" | "warn" | "bad" | "off" | "blue"> = { needs: "warn", prog: "blue", done: "ok", fail: "bad", ign: "off" }
 
 function ChannelIcon({ c }: { c: ActivityChannel }) {
@@ -25,12 +28,17 @@ export function Activity({ initialAgent }: { initialAgent?: string }) {
   const [filter, setFilter] = useState<Filter>("all")
   const [agent, setAgent] = useState(initialAgent)
   const [q, setQ] = useState("")
+  const [channels, setChannels] = useState<string[]>([])
+  const [types, setTypes] = useState<string[]>([])
+  const toggle = (list: string[], set: (v: string[]) => void, v: string) => set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v])
   const [open, setOpen] = useState<ActivityRow | null>(null)
 
   const rows = ACTIVITY.filter(
     (r) =>
       (filter === "all" || r.status === filter) &&
       (!agent || r.agent === agent) &&
+      (!channels.length || channels.includes(r.channel)) &&
+      (!types.length || types.includes(r.type)) &&
       (!q.trim() || `${r.about} ${r.customer} ${r.ref} ${r.type}`.toLowerCase().includes(q.trim().toLowerCase()))
   )
   const days = [...new Set(rows.map((r) => r.when.split(",")[0]))]
@@ -63,6 +71,51 @@ export function Activity({ initialAgent }: { initialAgent?: string }) {
             className="h-11 w-full rounded-xl bg-card pr-4 pl-10 text-[15px] shadow-[0_1px_2px_rgb(0_0_0/0.04)] outline-none placeholder:text-muted-foreground focus:ring-4 focus:ring-primary/15"
           />
         </div>
+        <Popover>
+          <PopoverTrigger className="inline-flex h-11 items-center gap-2 rounded-xl bg-card px-4 text-[15px] font-medium shadow-[0_1px_2px_rgb(0_0_0/0.04)] hover:shadow-md">
+            <SlidersHorizontal className="size-4" />
+            Filter
+            {channels.length + types.length > 0 && (
+              <span className="grid size-5 place-items-center rounded-full bg-primary text-[11px] text-primary-foreground">{channels.length + types.length}</span>
+            )}
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-80 rounded-2xl p-4">
+            {(
+              [
+                ["Channel", CHANNELS, channels, setChannels],
+                ["Kind of email", TYPES, types, setTypes],
+              ] as const
+            ).map(([title, opts, list, set]) => (
+              <div key={title} className="mb-4 last:mb-0">
+                <div className="mb-2 text-[13px] font-semibold text-muted-foreground">{title}</div>
+                <div className="flex flex-wrap gap-2">
+                  {opts.map((o) => (
+                    <button
+                      key={o}
+                      onClick={() => toggle(list, set, o)}
+                      className={cn(
+                        "h-8 rounded-full border px-3 text-[13px] transition",
+                        list.includes(o) ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-muted"
+                      )}
+                    >
+                      {o}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </PopoverContent>
+        </Popover>
+        {[...channels, ...types].map((v) => (
+          <button
+            key={v}
+            onClick={() => (channels.includes(v) ? toggle(channels, setChannels, v) : toggle(types, setTypes, v))}
+            className="inline-flex h-9 items-center gap-1.5 rounded-full bg-foreground px-4 text-[13px] font-medium text-background"
+          >
+            {v}
+            <X className="size-3.5" />
+          </button>
+        ))}
         {agent && (
           <button onClick={() => setAgent(undefined)} className="inline-flex h-9 items-center gap-1.5 rounded-full bg-foreground px-4 text-[13px] font-medium text-background">
             {agent}

@@ -2,14 +2,16 @@
 
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
-import { Check, ChevronLeft, ChevronRight, Mail, Paperclip, Phone } from "lucide-react"
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Mail, Paperclip, Phone } from "lucide-react"
 import { toast } from "sonner"
 
 import { markDone, undoDone, useDone } from "@/components/m/store"
 import { Card, Details, Empty, Group, Icon, PageTitle, Row, Segmented, Steps, btn } from "@/components/m/ui"
 import { cn } from "@/lib/utils"
-import { DONT_SEND_REASONS, type CallItem, type ReplyItem } from "@/lib/moneiva/inbox-data"
-import { REVIEW_ITEMS } from "@/lib/minimal"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { STAGES } from "@/lib/moneiva/data"
+import { DONT_SEND_REASONS, INBOX_TYPES, type CallItem, type ReplyItem } from "@/lib/moneiva/inbox-data"
+import { REVIEW_ITEMS, STAGE_INFO } from "@/lib/minimal"
 
 type Item = ReplyItem | CallItem
 type Mode = "view" | "edit" | "skip"
@@ -140,6 +142,54 @@ export function Review({ initialId }: { initialId?: string }) {
   )
 }
 
+/** The kind of email, with a menu to change it. Unsure guesses are flagged so people check them. */
+function KindPicker({ value, guess, onChange }: { value: string | null; guess?: string; onChange: (k: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const shown = value ?? guess?.replace(" (new)", "")
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-2 text-[13px]">
+      <span className="text-muted-foreground">Kind of email</span>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger
+          className={cn(
+            "inline-flex h-8 items-center gap-1.5 rounded-full px-3 font-medium transition",
+            value ? "bg-secondary hover:brightness-95" : "bg-warn/12 text-warn ring-1 ring-warn/30"
+          )}
+        >
+          {shown ?? "Not set"}
+          {!value && <span className="font-normal">· best guess</span>}
+          <ChevronDown className="size-3.5" />
+        </PopoverTrigger>
+        <PopoverContent align="start" className="max-h-80 w-80 overflow-y-auto rounded-2xl p-1.5">
+          {STAGES.filter((st) => INBOX_TYPES.some((t) => t.stage === st)).map((st) => (
+            <div key={st} className="mb-1">
+              <div className="px-3 pt-2 pb-1 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">{STAGE_INFO[st].label}</div>
+              {INBOX_TYPES.filter((t) => t.stage === st).map((t) => (
+                <button
+                  key={t.name}
+                  onClick={() => {
+                    onChange(t.name)
+                    setOpen(false)
+                  }}
+                  className="flex h-9 w-full items-center justify-between rounded-lg px-3 text-left text-[14px] hover:bg-muted"
+                >
+                  {t.name}
+                  {t.name === value && <Check className="size-4 text-primary" />}
+                </button>
+              ))}
+            </div>
+          ))}
+          <div className="border-t border-border pt-1">
+            <Link href="/teach/check" className="flex h-9 items-center rounded-lg px-3 text-[14px] text-primary hover:bg-muted">
+              It&apos;s a new kind of email
+            </Link>
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  )
+}
+
 /** Drag a card sideways to move to the next or previous one. Vertical scrolling still works. */
 function Swipe({ onSwipe, children }: { onSwipe: (step: 1 | -1) => boolean; children: React.ReactNode }) {
   const start = useRef<{ x: number; y: number; id: number } | null>(null)
@@ -191,7 +241,7 @@ function ItemCard({ item, dir, onFinish }: { item: Item; dir: 1 | -1; onFinish: 
   const [remember, setRemember] = useState(true)
   const [reason, setReason] = useState<string>("")
   const first = item.from.split(" ")[0]
-  const type = item.type ?? item.guess
+  const [kind, setKind] = useState<string | null>(item.type)
   const rule = `For ${item.ruleType}: when ${item.ruleWhen}, ${item.ruleThen}.`
 
   return (
@@ -216,11 +266,10 @@ function ItemCard({ item, dir, onFinish }: { item: Item; dir: 1 | -1; onFinish: 
 
       <h2 className="mt-6 text-[24px] leading-snug font-semibold tracking-tight">{item.subject}</h2>
       <p className="mt-2 text-[17px] leading-relaxed text-muted-foreground">{item.asked}</p>
-      {type && (
-        <p className="mt-3 text-[13px] text-muted-foreground">
-          {item.type ? type : `Looks like ${type}. Not sure yet, so it asked you.`}
-        </p>
-      )}
+      <KindPicker value={kind} guess={item.guess} onChange={(k) => {
+        setKind(k)
+        toast(`Set to ${k}. It will remember emails like this one.`)
+      }} />
 
       {/* What the agent wants to do */}
       <div className="mt-6">
