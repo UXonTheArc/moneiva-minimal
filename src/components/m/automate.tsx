@@ -111,11 +111,11 @@ function WorkflowRow({ w }: { w: Workflow }) {
       title={w.name}
       sub={
         <>
-          <span className="block">{w.sentence}</span>
-          <span className="mt-1 inline-flex items-center gap-1.5 text-[12px]">
+          <span className="flex items-center gap-1.5">
             <Dot tone={failed ? "bad" : live ? "ok" : "off"} />
-            {failed ? "Last run couldn't finish" : live ? "Live" : "Off"} · {w.agents}
+            <span className="truncate">{failed ? "Last run couldn't finish" : live ? "Live" : "Off"}</span>
           </span>
+          <span className="block truncate">{w.sentence}</span>
         </>
       }
     />

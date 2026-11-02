@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { Mail, MessageSquare, PhoneIncoming, PhoneOutgoing, Search, SlidersHorizontal, X } from "lucide-react"
 
-import { markDone } from "@/components/m/store"
+import { markDone, useDone } from "@/components/m/store"
 import { Details, Dot, Group, Icon, PageTitle, Row, Segmented, Section, Steps, btn } from "@/components/m/ui"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -24,6 +24,16 @@ function ChannelIcon({ c }: { c: ActivityChannel }) {
 }
 
 const reviewLink = (id: string) => INBOX_LINK[id]?.replace("/inbox", "/review").replace(/filter=call&/, "")
+const reviewId = (id: string) => INBOX_LINK[id]?.match(/item=(\w+)/)?.[1]
+
+/** Activity and Review show the same work: once it is handled in Review, it is done here too. */
+function useRows() {
+  const isDone = useDone()
+  return ACTIVITY.map((r) => {
+    const item = r.status === "needs" ? reviewId(r.id) : undefined
+    return item && isDone(item) ? { ...r, status: "done" as const, statusNote: "Handled in Review" } : r
+  })
+}
 
 export function Activity({ initialAgent, initialFilter = "all" }: { initialAgent?: string; initialFilter?: Filter }) {
   const [filter, setFilter] = useState<Filter>(initialFilter)
@@ -37,7 +47,8 @@ export function Activity({ initialAgent, initialFilter = "all" }: { initialAgent
   const toggle = (list: string[], set: (v: string[]) => void, v: string) => set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v])
   const [open, setOpen] = useState<ActivityRow | null>(null)
 
-  const rows = ACTIVITY.filter(
+  const all = useRows()
+  const rows = all.filter(
     (r) =>
       (filter === "all" || r.status === filter) &&
       (!agent || r.agent === agent) &&
@@ -168,7 +179,6 @@ export function Activity({ initialAgent, initialFilter = "all" }: { initialAgent
 
 function Detail({ r }: { r: ActivityRow }) {
   const link = r.status === "needs" ? reviewLink(r.id) : undefined
-  const teach = r.type === "New request type"
   return (
     <>
       <SheetHeader className="border-b border-border p-6">
@@ -194,8 +204,8 @@ function Detail({ r }: { r: ActivityRow }) {
           </div>
         </dl>
         {link && (
-          <Link href={teach ? "/teach/check" : link} className={cn(btn.primary, "mt-6")}>
-            {teach ? "Teach it" : "Review it"}
+          <Link href={link} className={cn(btn.primary, "mt-6")}>
+            Review it
           </Link>
         )}
       </div>

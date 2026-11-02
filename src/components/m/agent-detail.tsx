@@ -37,14 +37,17 @@ export function AgentDetail({ agent: a }: { agent: Agent }) {
     <>
       <BackLink href="/automate" label="Automate" />
 
-      <div className="mb-10 flex flex-wrap items-center gap-5">
-        <span className="grid size-16 place-items-center rounded-[18px] bg-card shadow-sm [&_svg]:size-7">
+      <div className="mb-10 flex flex-col gap-5 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 flex-1 items-center gap-4 sm:gap-5">
+        <span className="grid size-14 shrink-0 place-items-center rounded-[16px] bg-card shadow-sm sm:size-16 sm:rounded-[18px] [&_svg]:size-6 sm:[&_svg]:size-7">
           <KindIcon kind={a.kind} />
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="text-[34px] leading-tight font-bold tracking-tight">{a.name}</h1>
+          <h1 className="text-[28px] leading-tight font-bold tracking-tight sm:text-[34px]">{a.name}</h1>
           <p className="text-[15px] text-muted-foreground">{a.channel}</p>
         </div>
+        </div>
+        <div className="flex items-center gap-2">
         <StatusMenu
           value={status}
           options={AGENT_STATUS}
@@ -53,6 +56,7 @@ export function AgentDetail({ agent: a }: { agent: Agent }) {
             toast(`${a.name} is ${AGENT_STATUS.find((o) => o.value === v)!.label.toLowerCase()}. ${AGENT_STATUS.find((o) => o.value === v)!.sub}`)
           }}
         />
+        </div>
       </div>
 
       {broken && (
