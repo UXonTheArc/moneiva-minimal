@@ -33,6 +33,9 @@ export function WorkflowDetail({ w }: { w: Workflow }) {
           <h1 className="text-[34px] leading-tight font-bold tracking-tight">{w.name}</h1>
           <p className="text-[15px] text-muted-foreground">{w.agents === "No agent" ? "Runs with no agent" : `Uses ${w.agents}`}</p>
         </div>
+        <Link href={`/automate/workflows/${w.id}/edit`} className={btn.secondary}>
+          Edit
+        </Link>
         <label className="flex items-center gap-3 text-[15px] font-medium">
           {on ? "On" : "Off"}
           <Switch
@@ -62,7 +65,14 @@ export function WorkflowDetail({ w }: { w: Workflow }) {
         </Card>
       )}
 
-      <Section title="How it works">
+      <Section
+        title="How it works"
+        action={
+          <Link href={`/automate/workflows/${w.id}/edit`} className={btn.plain}>
+            Edit on canvas
+          </Link>
+        }
+      >
         <Card className="p-6 sm:p-8">
           <Steps steps={w.steps.map((s) => ({ title: s.title, sub: s.sub, tag: s.agent }))} />
         </Card>

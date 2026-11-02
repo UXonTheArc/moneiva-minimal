@@ -22,6 +22,7 @@ The fourth version of the Moneiva redesign: the whole app simplified to as few a
 | `/automate` | Agents and workflows side by side (`?view=workflows`) |
 | `/automate/agents/[id]` | One agent: op, phone, check, osd, cat |
 | `/automate/workflows/[id]` | One workflow: osd, late, missed, latepickup, kpi |
+| `/automate/workflows/[id]/edit` | The canvas: add, rename or delete steps, then Publish |
 | `/activity` | Everything that happened (`?agent=The Operator`) |
 | `/settings` | Account, with links to the management pages |
 | `/settings/[section]` | reports, users, connections, general (placeholders) |
