@@ -1,16 +1,17 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Mail, MessageSquare, PhoneIncoming, PhoneOutgoing, Search, SlidersHorizontal, X } from "lucide-react"
 
+import { markDone } from "@/components/m/store"
 import { Details, Dot, Group, Icon, PageTitle, Row, Segmented, Section, Steps, btn } from "@/components/m/ui"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { ACTIVITY, FILTER_MENUS, INBOX_LINK, STATUS_LABEL, type ActivityChannel, type ActivityRow, type ActivityStatus } from "@/lib/moneiva/activity-data"
 
-type Filter = "all" | "needs" | "fail"
+export type Filter = "all" | "needs" | "fail"
 const CHANNELS = FILTER_MENUS.find((m) => m.key === "channel")!.opts
 const TYPES = FILTER_MENUS.find((m) => m.key === "type")!.opts
 const TONE: Record<ActivityStatus, "ok" | "warn" | "bad" | "off" | "blue"> = { needs: "warn", prog: "blue", done: "ok", fail: "bad", ign: "off" }
@@ -24,8 +25,11 @@ function ChannelIcon({ c }: { c: ActivityChannel }) {
 
 const reviewLink = (id: string) => INBOX_LINK[id]?.replace("/inbox", "/review").replace(/filter=call&/, "")
 
-export function Activity({ initialAgent }: { initialAgent?: string }) {
-  const [filter, setFilter] = useState<Filter>("all")
+export function Activity({ initialAgent, initialFilter = "all" }: { initialAgent?: string; initialFilter?: Filter }) {
+  const [filter, setFilter] = useState<Filter>(initialFilter)
+
+  // Opening Activity counts as seeing what couldn't finish, so the dot on the icon clears.
+  useEffect(() => markDone("seen-fails"), [])
   const [agent, setAgent] = useState(initialAgent)
   const [q, setQ] = useState("")
   const [channels, setChannels] = useState<string[]>([])

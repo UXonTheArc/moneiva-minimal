@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import { AccountMenu } from "@/components/m/account-menu"
 import { REVIEW_ITEMS } from "@/lib/minimal"
 import { useDone } from "@/components/m/store"
+import { ACTIVITY } from "@/lib/moneiva/activity-data"
 
 /** Four places. Everything else is one tap deeper. */
 const NAV = [
@@ -26,6 +27,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname()
   const isDone = useDone()
   const left = REVIEW_ITEMS.filter((i) => !isDone(i.id)).length
+  // A red dot only for work that couldn't finish and hasn't been looked at. "Needs you" already has its count on Review.
+  const fails = isDone("seen-fails") ? 0 : ACTIVITY.filter((r) => r.status === "fail").length
   const nav = NAV.map((n) => (n.href === "/review" ? { ...n, count: left } : n))
 
   return (
@@ -61,15 +64,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
           <div className="ml-auto flex items-center gap-1 md:ml-0">
             <Link
-              href="/activity"
-              aria-label="Activity"
-              title="Activity: everything that happened"
+              href={fails ? "/activity?filter=fail" : "/activity"}
+              aria-label={fails ? `Activity: ${fails} couldn't finish` : "Activity"}
+              title={fails ? `${fails} couldn't finish` : "Activity: everything that happened"}
               className={cn(
-                "grid size-9 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground",
+                "relative grid size-9 place-items-center rounded-full text-muted-foreground hover:bg-secondary hover:text-foreground",
                 isActive(path, "/activity") && "bg-secondary text-foreground"
               )}
             >
               <History className="size-[18px]" />
+              {fails > 0 && <span className="absolute top-1.5 right-1.5 size-2.5 rounded-full bg-destructive ring-2 ring-background" />}
             </Link>
             <AccountMenu />
           </div>
